@@ -1,0 +1,1499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SafeScan — PPE Detection</title>
+  <meta name="description" content="AI-powered PPE compliance detection for construction sites. Upload an image and SafeScan automatically detects safety violations in seconds.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #04060f;
+      --bg2:      #070b18;
+      --blue:     #3b82f6;
+      --blue-d:   #2563eb;
+      --blue-b:   #60a5fa;
+      --blue-dim: rgba(59,130,246,0.12);
+      --blue-glow:rgba(59,130,246,0.28);
+      --blue-lg:  rgba(59,130,246,0.45);
+      --glass:    rgba(255,255,255,0.05);
+      --glass-h:  rgba(255,255,255,0.09);
+      --glass-b:  rgba(255,255,255,0.08);
+      --glass-bh: rgba(255,255,255,0.18);
+      --text:     #f0f4ff;
+      --text2:    #c7d2f0;
+      --muted:    #7b8ab8;
+      --dim:      #445070;
+      --green:    #22c55e;
+      --green-bg: rgba(34,197,94,0.1);
+      --green-b:  rgba(34,197,94,0.22);
+      --red:      #f87171;
+      --red-bg:   rgba(248,113,113,0.1);
+      --red-b:    rgba(248,113,113,0.22);
+      --amber:    #fbbf24;
+      --blur-sm:  blur(16px);
+      --blur:     blur(28px);
+      --blur-lg:  blur(48px);
+      --r-sm:  8px;
+      --r-md:  14px;
+      --r-lg:  20px;
+      --r-xl:  28px;
+      --r-2xl: 40px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* ═══════════════════════════════════════
+       BACKGROUND
+    ═══════════════════════════════════════ */
+    .bg-scene {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+    }
+    /* Deep blue orbs */
+    .orb {
+      position: absolute; border-radius: 50%;
+      filter: blur(80px); pointer-events: none;
+    }
+    .orb-1 {
+      width: 800px; height: 800px;
+      background: radial-gradient(circle, rgba(37,99,235,0.4) 0%, transparent 70%);
+      top: -300px; left: -200px;
+      animation: drift1 18s ease-in-out infinite;
+    }
+    .orb-2 {
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(59,130,246,0.25) 0%, transparent 70%);
+      bottom: -150px; right: -100px;
+      animation: drift2 22s ease-in-out infinite;
+    }
+    .orb-3 {
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(99,102,241,0.18) 0%, transparent 70%);
+      top: 50%; left: 55%;
+      animation: drift3 16s ease-in-out infinite;
+    }
+    @keyframes drift1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(60px,40px)} }
+    @keyframes drift2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-50px,-30px)} }
+    @keyframes drift3 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(30px,-50px)} }
+
+    /* Dot grid */
+    .bg-grid {
+      position: absolute; inset: 0;
+      background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 30px 30px;
+    }
+    /* Subtle horizontal lines */
+    .bg-lines {
+      position: absolute; inset: 0;
+      background-image: repeating-linear-gradient(
+        0deg, transparent, transparent 79px, rgba(255,255,255,0.015) 80px
+      );
+    }
+
+    .page-wrap { position: relative; z-index: 1; }
+
+    /* ═══════════════════════════════════════
+       GLASS MIXIN
+    ═══════════════════════════════════════ */
+    .glass {
+      background: var(--glass);
+      backdrop-filter: var(--blur);
+      -webkit-backdrop-filter: var(--blur);
+      border: 1px solid var(--glass-b);
+    }
+
+    /* ═══════════════════════════════════════
+       NAV
+    ═══════════════════════════════════════ */
+    .nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(4,6,15,0.7);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-bottom: 1px solid var(--glass-b);
+      padding: 0 52px;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 66px;
+    }
+    .nav-logo {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 1.05rem; font-weight: 800; color: var(--text);
+      letter-spacing: -0.02em;
+    }
+    .nav-logo-icon {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 20px rgba(59,130,246,0.5);
+      flex-shrink: 0;
+    }
+    .nav-badge {
+      font-size: 0.68rem; font-weight: 600;
+      background: var(--blue-dim); color: var(--blue-b);
+      border: 1px solid rgba(59,130,246,0.2);
+      padding: 4px 12px; border-radius: 20px; letter-spacing: 0.01em;
+    }
+    .nav-right { display: flex; align-items: center; gap: 8px; }
+    .nav-btn {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 0.82rem; font-weight: 600; cursor: pointer;
+      border-radius: 50px; padding: 9px 20px;
+      transition: all 0.15s; border: none;
+      display: inline-flex; align-items: center; gap: 6px;
+      letter-spacing: -0.01em;
+    }
+    .nav-btn-ghost {
+      background: var(--glass); color: var(--muted);
+      border: 1px solid var(--glass-b);
+      backdrop-filter: var(--blur-sm);
+    }
+    .nav-btn-ghost:hover { background: var(--glass-h); color: var(--text); border-color: var(--glass-bh); }
+    .nav-btn-blue {
+      background: var(--blue-d); color: #fff;
+      box-shadow: 0 0 20px var(--blue-glow);
+    }
+    .nav-btn-blue:hover { background: #1d4ed8; box-shadow: 0 0 32px var(--blue-lg); }
+
+    /* ═══════════════════════════════════════
+       EYEBROW LABEL
+    ═══════════════════════════════════════ */
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      color: var(--blue-b);
+      font-size: 0.7rem; font-weight: 800;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+    .eyebrow-dot { display: none; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
+
+    /* ═══════════════════════════════════════
+       HERO
+    ═══════════════════════════════════════ */
+    .hero {
+      padding: 80px 52px 60px; position: relative; overflow: hidden;
+    }
+    .hero-inner {
+      max-width: 1120px; margin: 0 auto;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center;
+    }
+    .hero h1 {
+      font-size: clamp(2.6rem, 5.5vw, 4rem);
+      font-weight: 800; color: var(--text);
+      line-height: 1.1; letter-spacing: -0.03em; margin-bottom: 20px;
+    }
+    .hero h1 .accent {
+      background: linear-gradient(135deg, #60a5fa, #818cf8);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-sub {
+      font-size: 1rem; color: var(--muted);
+      line-height: 1.8; margin-bottom: 36px; max-width: 420px;
+    }
+    .hero-cta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .btn-blue {
+      background: var(--blue-d); color: #fff;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 0.88rem; font-weight: 700;
+      padding: 13px 28px; border-radius: 50px; border: none; cursor: pointer;
+      box-shadow: 0 4px 24px var(--blue-glow); transition: all 0.2s;
+      display: inline-flex; align-items: center; gap: 8px; letter-spacing: -0.01em;
+    }
+    .btn-blue:hover { background: #1d4ed8; transform: translateY(-2px); box-shadow: 0 6px 36px var(--blue-lg); }
+    .btn-glass {
+      background: var(--glass); color: var(--text2);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 0.88rem; font-weight: 600;
+      padding: 13px 24px; border-radius: 50px;
+      border: 1px solid var(--glass-b); cursor: pointer;
+      backdrop-filter: var(--blur-sm); transition: all 0.15s;
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .btn-glass:hover { background: var(--glass-h); border-color: var(--glass-bh); color: var(--text); }
+
+    /* Hero right — glass card */
+    .hero-right {
+      position: relative; display: flex; align-items: center; justify-content: center;
+      min-height: 380px;
+    }
+    .hero-card-main {
+      background: rgba(255,255,255,0.04);
+      backdrop-filter: blur(32px);
+      -webkit-backdrop-filter: blur(32px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--r-xl); padding: 28px;
+      width: 100%; max-width: 380px;
+      box-shadow: 0 8px 48px rgba(0,0,0,0.4), 0 0 0 1px rgba(59,130,246,0.08), inset 0 1px 0 rgba(255,255,255,0.08);
+      position: relative; z-index: 2;
+    }
+    .hcm-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
+    .hcm-title { font-size: 0.85rem; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
+    .live-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: var(--green-bg); color: var(--green);
+      border: 1px solid var(--green-b);
+      font-size: 0.68rem; font-weight: 700; padding: 3px 10px; border-radius: 20px;
+    }
+    .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 1.5s infinite; }
+    .hcm-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    .hcm-stat {
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
+      border-radius: var(--r-md); padding: 14px 12px; text-align: center;
+    }
+    .hcm-num {
+      font-size: 1.9rem; font-weight: 800; color: var(--text);
+      letter-spacing: -0.05em; line-height: 1;
+    }
+    .hcm-num.blue  { color: var(--blue-b); }
+    .hcm-num.green { color: var(--green); }
+    .hcm-num.red   { color: var(--red); }
+    .hcm-label { font-size: 0.65rem; color: var(--muted); margin-top: 4px; font-weight: 600; }
+
+    /* Floating cards */
+    .float-card {
+      position: absolute; z-index: 3;
+      background: rgba(255,255,255,0.05);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--r-md); padding: 12px 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      font-size: 0.75rem; font-weight: 600; color: var(--text2);
+      white-space: nowrap;
+    }
+    .float-card-num {
+      font-size: 1.5rem; font-weight: 800; color: var(--text);
+      letter-spacing: -0.04em; line-height: 1;
+    }
+    .float-card-sub { font-size: 0.65rem; color: var(--muted); margin-top: 2px; }
+    .fc-1 { top: 0; right: -10px; animation: float1 6s ease-in-out infinite; }
+    .fc-2 { bottom: 20px; left: -30px; animation: float2 7s ease-in-out infinite; }
+    @keyframes float1 { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-14px)} }
+    @keyframes float2 { 0%,100%{transform:translateY(0)} 50%{transform:translateY(12px)} }
+
+    /* ═══════════════════════════════════════
+       TRUST BAR
+    ═══════════════════════════════════════ */
+    .trust-bar {
+      background: rgba(255,255,255,0.02);
+      border-top: 1px solid var(--glass-b);
+      border-bottom: 1px solid var(--glass-b);
+      padding: 20px 0;
+      overflow: hidden;
+    }
+    .trust-inner {
+      display: flex; flex-direction: column; align-items: center; gap: 14px;
+    }
+    .trust-label {
+      font-size: 0.65rem; font-weight: 800; color: var(--dim);
+      letter-spacing: 0.15em; text-transform: uppercase;
+    }
+    .trust-divider { display: none; }
+    /* Marquee track wrapper — full width, clips overflow */
+    .trust-track {
+      width: 100%; overflow: hidden;
+    }
+    /* Animating strip */
+    .trust-chips {
+      display: flex; align-items: center; gap: 18px;
+      width: max-content;
+      animation: marquee-scroll 32s linear infinite;
+    }
+    @keyframes marquee-scroll {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+    .trust-chip {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: var(--glass); border: 1px solid var(--glass-b);
+      border-radius: var(--r-md); padding: 10px 18px;
+      font-size: 0.82rem; font-weight: 600; color: var(--text2);
+      transition: background 0.2s, border-color 0.2s; cursor: default;
+      backdrop-filter: var(--blur-sm); flex-shrink: 0;
+    }
+    .trust-chip:hover { background: var(--glass-h); border-color: var(--glass-bh); color: var(--text); }
+    .trust-chip-ico {
+      width: 32px; height: 32px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+
+    /* ═══════════════════════════════════════
+       SECTION
+    ═══════════════════════════════════════ */
+    .section { max-width: 1120px; margin: 0 auto; padding: 80px 52px; }
+
+    .section-title {
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 800; color: var(--text);
+      line-height: 1.1; letter-spacing: -0.035em; margin-bottom: 12px;
+    }
+    .section-title .accent {
+      background: linear-gradient(135deg, #60a5fa, #818cf8);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .section-sub { font-size: 0.95rem; color: var(--muted); max-width: 480px; line-height: 1.8; }
+    .section-sep { border: none; border-top: 1px solid var(--glass-b); margin: 0; }
+
+    /* ═══════════════════════════════════════
+       UPLOAD SECTION
+    ═══════════════════════════════════════ */
+    .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; margin-top: 44px; }
+
+    .drop-zone {
+      border: 1.5px dashed rgba(255,255,255,0.1);
+      border-radius: var(--r-lg); padding: 44px 24px; text-align: center;
+      cursor: pointer; transition: all 0.2s;
+      background: var(--glass); backdrop-filter: var(--blur);
+      margin-bottom: 16px;
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--blue); background: rgba(59,130,246,0.08);
+      box-shadow: 0 0 0 4px rgba(59,130,246,0.1), 0 0 40px rgba(59,130,246,0.15);
+    }
+    .drop-zone input[type="file"] { display: none; }
+    .dz-icon-wrap {
+      width: 64px; height: 64px; border-radius: 18px;
+      background: var(--blue-dim); border: 1px solid rgba(59,130,246,0.2);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 16px; color: var(--blue-b);
+    }
+    .dz-title { font-weight: 700; font-size: 0.92rem; color: var(--text); }
+    .dz-sub   { font-size: 0.78rem; color: var(--muted); margin-top: 5px; }
+    .dz-formats { display: flex; justify-content: center; gap: 6px; margin-top: 16px; }
+    .dz-fmt {
+      font-size: 0.7rem; font-weight: 700; color: var(--blue-b);
+      background: var(--blue-dim); border: 1px solid rgba(59,130,246,0.2);
+      padding: 3px 10px; border-radius: 5px;
+    }
+    .preview-wrap { display: none; margin-bottom: 14px; border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--glass-b); }
+    .preview-wrap canvas { display: block; max-width: 100%; border-radius: var(--r-md); }
+
+    .upload-btn-row { display: flex; gap: 10px; align-items: center; }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 7px;
+      background: var(--blue-d); color: #fff;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 0.86rem; font-weight: 700;
+      padding: 11px 22px; border-radius: 50px; border: none; cursor: pointer;
+      box-shadow: 0 4px 20px var(--blue-glow); transition: all 0.15s; letter-spacing: -0.01em;
+    }
+    .btn-primary:hover { background: #1d4ed8; box-shadow: 0 6px 28px var(--blue-lg); }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+    .btn-ghost-sm {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--glass); color: var(--muted);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 0.84rem; font-weight: 600;
+      padding: 11px 18px; border-radius: 50px;
+      border: 1px solid var(--glass-b); cursor: pointer;
+      backdrop-filter: var(--blur-sm); transition: all 0.15s;
+    }
+    .btn-ghost-sm:hover { background: var(--glass-h); color: var(--text); border-color: var(--glass-bh); }
+
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 0.8rem; font-weight: 600; color: var(--dim);
+      background: var(--glass); border: 1px solid var(--glass-b);
+      padding: 7px 16px; border-radius: 50px; margin-top: 12px;
+      backdrop-filter: var(--blur-sm); transition: all 0.2s;
+    }
+    .status-pill.uploading { color: var(--blue-b); border-color: rgba(59,130,246,0.3); background: var(--blue-dim); }
+    .status-pill.success   { color: var(--green); border-color: var(--green-b); background: var(--green-bg); }
+    .status-pill.error     { color: var(--red);   border-color: var(--red-b);   background: var(--red-bg); }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+    /* Feature cards */
+    .feature-list { display: flex; flex-direction: column; gap: 10px; }
+    .feature-row {
+      display: flex; align-items: flex-start; gap: 14px;
+      padding: 18px 20px; border-radius: var(--r-md);
+      background: var(--glass); border: 1px solid var(--glass-b);
+      backdrop-filter: var(--blur-sm); transition: all 0.2s;
+    }
+    .feature-row:hover { background: var(--glass-h); border-color: var(--glass-bh); transform: translateX(4px); box-shadow: 0 4px 24px rgba(0,0,0,0.3); }
+    .feature-row-icon {
+      width: 42px; height: 42px; border-radius: 11px;
+      background: var(--blue-dim); border: 1px solid rgba(59,130,246,0.2);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; color: var(--blue-b);
+    }
+    .feature-row-title { font-weight: 700; font-size: 0.88rem; color: var(--text); margin-bottom: 4px; }
+    .feature-row-desc  { font-size: 0.77rem; color: var(--muted); line-height: 1.65; }
+
+    /* ═══════════════════════════════════════
+       HOW IT WORKS
+    ═══════════════════════════════════════ */
+    .how-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 44px; }
+    .how-card {
+      background: var(--glass); border: 1px solid var(--glass-b);
+      border-radius: var(--r-xl); padding: 32px 28px;
+      backdrop-filter: var(--blur); transition: all 0.2s; position: relative;
+      overflow: hidden;
+    }
+    .how-card::before {
+      content: ''; position: absolute; inset: 0; border-radius: var(--r-xl);
+      background: linear-gradient(135deg, rgba(59,130,246,0.06) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .how-card:hover { background: var(--glass-h); border-color: var(--glass-bh); transform: translateY(-4px); box-shadow: 0 16px 48px rgba(0,0,0,0.4); }
+    .how-card.blue-card {
+      background: linear-gradient(135deg, rgba(37,99,235,0.7) 0%, rgba(79,70,229,0.6) 100%);
+      border-color: rgba(59,130,246,0.4);
+      box-shadow: 0 0 40px rgba(37,99,235,0.25), inset 0 1px 0 rgba(255,255,255,0.15);
+    }
+    .how-card.blue-card::before { background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 60%); }
+    .how-card.blue-card .how-step-title { color: #fff; }
+    .how-card.blue-card .how-step-desc  { color: rgba(255,255,255,0.7); }
+    .how-card.blue-card .how-num { color: rgba(255,255,255,0.15); }
+    .how-card.blue-card .how-step-icon { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.2); color: #fff; }
+    .how-num {
+      font-size: 3rem; font-weight: 800; color: rgba(255,255,255,0.05);
+      letter-spacing: -0.06em; line-height: 1; margin-bottom: 16px;
+    }
+    .how-step-icon {
+      width: 48px; height: 48px; border-radius: 13px;
+      background: var(--blue-dim); border: 1px solid rgba(59,130,246,0.2);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 16px; color: var(--blue-b);
+    }
+    .how-step-title { font-weight: 700; font-size: 0.95rem; color: var(--text); margin-bottom: 8px; }
+    .how-step-desc  { font-size: 0.82rem; color: var(--muted); line-height: 1.7; }
+
+    /* ═══════════════════════════════════════
+       RESULTS
+    ═══════════════════════════════════════ */
+    .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 36px; }
+    .stat-card {
+      background: var(--glass); border: 1px solid var(--glass-b);
+      border-radius: var(--r-lg); padding: 24px 20px;
+      display: flex; flex-direction: column; gap: 5px;
+      backdrop-filter: var(--blur); transition: all 0.2s;
+      position: relative; overflow: hidden;
+    }
+    .stat-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+    }
+    .stat-card:hover { background: var(--glass-h); border-color: var(--glass-bh); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+    /* Gradient fill variants — subtle glassmorphism tint */
+    .stat-card--green {
+      background: linear-gradient(145deg, rgba(34,197,94,0.10) 0%, rgba(34,197,94,0.04) 45%, var(--glass) 100%);
+      border-color: rgba(34,197,94,0.18);
+    }
+    .stat-card--red {
+      background: linear-gradient(145deg, rgba(248,113,113,0.10) 0%, rgba(248,113,113,0.04) 45%, var(--glass) 100%);
+      border-color: rgba(248,113,113,0.18);
+    }
+    .stat-card-label { font-size: 0.68rem; font-weight: 700; color: var(--dim); letter-spacing: 0.07em; text-transform: uppercase; }
+    .stat-card-num {
+      font-size: 2.6rem; font-weight: 800; color: var(--text);
+      letter-spacing: -0.05em; line-height: 1; margin-top: 4px;
+    }
+    .stat-card-num.blue  { color: var(--blue-b); }
+    .stat-card-num.green { color: var(--green); }
+    .stat-card-num.red   { color: var(--red); }
+    .stat-card-sub { font-size: 0.73rem; color: var(--muted); }
+
+    /* Tabs */
+    .tabs {
+      display: flex; gap: 0;
+      background: var(--glass); border: 1px solid var(--glass-b);
+      border-radius: var(--r-sm); padding: 4px;
+      width: fit-content; margin-bottom: 24px;
+      backdrop-filter: var(--blur-sm);
+    }
+    .tab {
+      padding: 8px 20px; font-size: 0.82rem; font-weight: 600;
+      color: var(--muted); cursor: pointer; border-radius: 6px;
+      transition: all 0.15s; display: flex; align-items: center; gap: 6px;
+      border: none; background: transparent;
+    }
+    .tab.active { background: rgba(59,130,246,0.2); color: var(--blue-b); border: 1px solid rgba(59,130,246,0.3); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* Result cards */
+    .result-card {
+      background: var(--glass); border: 1px solid var(--glass-b);
+      border-radius: var(--r-md); padding: 16px 20px; margin-bottom: 8px;
+      display: flex; justify-content: space-between; align-items: center;
+      cursor: pointer; transition: all 0.2s;
+      backdrop-filter: var(--blur-sm);
+    }
+    .result-card:hover { background: var(--glass-h); border-color: var(--glass-bh); transform: translateX(3px); }
+    .result-card.clear {
+      background: linear-gradient(135deg, rgba(34,197,94,0.09) 0%, rgba(34,197,94,0.03) 40%, transparent 100%);
+      border-color: rgba(34,197,94,0.16);
+    }
+    .result-card.violation {
+      background: linear-gradient(135deg, rgba(248,113,113,0.09) 0%, rgba(248,113,113,0.03) 40%, transparent 100%);
+      border-color: rgba(248,113,113,0.16);
+    }
+    .result-card.empty { opacity: 0.6; }
+    .result-filename { font-weight: 700; font-size: 0.87rem; color: var(--text); }
+    .result-meta     { font-size: 0.75rem; color: var(--muted); margin-top: 4px; display: flex; align-items: center; gap: 6px; }
+    .result-meta-sep { color: var(--dim); }
+
+    /* Badges */
+    .badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 12px; border-radius: 20px;
+      font-weight: 700; font-size: 0.73rem; white-space: nowrap; flex-shrink: 0; margin-left: 12px;
+    }
+    .badge-clear     { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-b); }
+    .badge-violation { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red-b); }
+    .badge-empty     { background: rgba(68,80,112,0.2); color: var(--muted); border: 1px solid rgba(68,80,112,0.3); }
+    .badge-worn      { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-b); font-size: 0.7rem; padding: 3px 9px; }
+    .badge-missing   { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red-b);   font-size: 0.7rem; padding: 3px 9px; }
+    .badge-blue      { background: var(--blue-dim); color: var(--blue-b); border: 1px solid rgba(59,130,246,0.2); font-size: 0.7rem; padding: 3px 9px; }
+
+    /* PPE Table */
+    .ppe-table-wrap { overflow-x: auto; border-radius: var(--r-md); border: 1px solid var(--glass-b); background: var(--glass); backdrop-filter: var(--blur); }
+    .ppe-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .ppe-table th {
+      text-align: left; padding: 12px 16px;
+      background: rgba(255,255,255,0.03); color: var(--dim);
+      font-weight: 700; font-size: 0.68rem; letter-spacing: 0.06em;
+      text-transform: uppercase; border-bottom: 1px solid var(--glass-b);
+    }
+    .ppe-table td { padding: 13px 16px; border-bottom: 1px solid var(--glass-b); vertical-align: middle; color: var(--text); }
+    .ppe-table tr:last-child td { border-bottom: none; }
+    .ppe-table tbody tr:hover td { background: rgba(255,255,255,0.03); }
+    .btn-detail {
+      background: var(--blue-dim); color: var(--blue-b);
+      border: 1px solid rgba(59,130,246,0.2); padding: 5px 12px; border-radius: 50px;
+      font-size: 0.73rem; font-weight: 700; cursor: pointer; transition: all 0.15s;
+    }
+    .btn-detail:hover { background: rgba(59,130,246,0.2); }
+
+    .no-results { text-align: center; color: var(--muted); padding: 52px 20px; font-size: 0.88rem; }
+    .no-results-icon { display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; opacity: 0.2; }
+
+    /* ═══════════════════════════════════════
+       MODALS
+    ═══════════════════════════════════════ */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(2,4,12,0.75); backdrop-filter: blur(12px);
+      z-index: 200; align-items: center; justify-content: center; padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: rgba(8,12,28,0.95);
+      backdrop-filter: blur(48px);
+      -webkit-backdrop-filter: blur(48px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--r-xl);
+      width: 520px; max-width: 100%; max-height: 88vh;
+      overflow-y: auto; box-shadow: 0 24px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(59,130,246,0.1);
+    }
+    .modal-lg { width: 860px !important; }
+    .modal-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 22px 26px 18px; border-bottom: 1px solid var(--glass-b);
+      position: sticky; top: 0;
+      background: rgba(8,12,28,0.98);
+      backdrop-filter: blur(24px); z-index: 2;
+      border-radius: var(--r-xl) var(--r-xl) 0 0;
+    }
+    .modal-title {
+      font-size: 1rem; font-weight: 800; color: var(--text);
+      display: flex; align-items: center; gap: 10px; letter-spacing: -0.02em;
+    }
+    .modal-title-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: var(--blue-dim); border: 1px solid rgba(59,130,246,0.2);
+      display: flex; align-items: center; justify-content: center; color: var(--blue-b); flex-shrink: 0;
+    }
+    .modal-close {
+      background: rgba(255,255,255,0.06); border: 1px solid var(--glass-b);
+      width: 30px; height: 30px; border-radius: 8px; cursor: pointer;
+      font-size: 0.85rem; color: var(--muted);
+      display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+    }
+    .modal-close:hover { background: rgba(255,255,255,0.12); color: var(--text); }
+    .modal-body { padding: 22px 26px; }
+    .modal-divider { border: none; border-top: 1px solid var(--glass-b); margin: 20px 0; }
+
+    .person-banner { border-radius: var(--r-md); padding: 16px 18px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 5px; }
+    .person-banner.compliant     { background: var(--green-bg); border: 1px solid var(--green-b); }
+    .person-banner.non-compliant { background: var(--red-bg);   border: 1px solid var(--red-b); }
+    .pb-title { font-weight: 800; font-size: 0.9rem; display: flex; align-items: center; gap: 7px; }
+    .person-banner.compliant .pb-title     { color: var(--green); }
+    .person-banner.non-compliant .pb-title { color: var(--red); }
+    .pb-sub { font-size: 0.8rem; color: var(--muted); }
+
+    .ppe-item-card {
+      border: 1px solid var(--glass-b); border-radius: var(--r-md);
+      padding: 14px 16px; margin-bottom: 8px;
+      display: flex; justify-content: space-between; align-items: center;
+      background: var(--glass);
+    }
+    .ppe-item-type { font-weight: 700; font-size: 0.85rem; color: var(--text); }
+    .ppe-item-meta { font-size: 0.75rem; color: var(--muted); margin-top: 3px; }
+
+    /* Settings */
+    .field-label { font-size: 0.82rem; font-weight: 700; color: var(--text); margin-bottom: 8px; display: flex; align-items: center; gap: 7px; }
+    .field-label-icon { color: var(--blue-b); }
+    .field-desc  { font-size: 0.74rem; color: var(--muted); margin-top: 3px; margin-bottom: 14px; line-height: 1.6; }
+    .ppe-check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 4px; }
+    .ppe-check-item {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.82rem; color: var(--text2); cursor: pointer;
+      padding: 10px 14px; border: 1px solid var(--glass-b);
+      border-radius: var(--r-sm); background: var(--glass);
+      transition: all 0.15s; font-weight: 500;
+      backdrop-filter: var(--blur-sm);
+    }
+    .ppe-check-item:has(input:checked) { border-color: rgba(59,130,246,0.4); background: var(--blue-dim); color: var(--text); }
+    .ppe-check-item input[type="checkbox"] { accent-color: var(--blue); width: 14px; height: 14px; }
+    .ppe-check-item-icon { color: var(--blue-b); display: flex; align-items: center; }
+    .slider-row { display: flex; align-items: center; gap: 14px; }
+    .slider-row input[type="range"] { flex: 1; accent-color: var(--blue); cursor: pointer; }
+    .slider-val { font-weight: 800; font-size: 0.95rem; color: var(--blue-b); min-width: 44px; text-align: right; }
+    .toggle-row { display: flex; align-items: flex-start; gap: 12px; }
+    .toggle-switch { position: relative; width: 42px; height: 24px; flex-shrink: 0; margin-top: 1px; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-knob {
+      position: absolute; inset: 0; background: rgba(255,255,255,0.08);
+      border-radius: 24px; cursor: pointer; transition: background 0.2s; border: 1px solid var(--glass-b);
+    }
+    .toggle-knob::before {
+      content: ''; position: absolute; width: 18px; height: 18px;
+      background: var(--muted); border-radius: 50%; top: 2px; left: 2px;
+      transition: transform 0.2s, background 0.2s;
+    }
+    .toggle-switch input:checked + .toggle-knob { background: var(--blue-d); border-color: var(--blue-d); }
+    .toggle-switch input:checked + .toggle-knob::before { transform: translateX(18px); background: #fff; }
+    .toggle-label .tl-title { font-weight: 700; font-size: 0.85rem; color: var(--text); }
+    .toggle-label .tl-desc  { font-size: 0.75rem; color: var(--muted); margin-top: 3px; line-height: 1.55; }
+    .btn-save {
+      width: 100%; background: var(--blue-d); color: #fff;
+      padding: 13px; border-radius: 50px;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 0.9rem; font-weight: 700; cursor: pointer; border: none;
+      margin-top: 20px; transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      box-shadow: 0 4px 20px var(--blue-glow);
+    }
+    .btn-save:hover { background: #1d4ed8; }
+
+    /* Scan detail */
+    .scan-detail-img-wrap {
+      background: rgba(0,0,0,0.5); border: 1px solid var(--glass-b);
+      border-radius: var(--r-md); overflow: hidden;
+      display: flex; align-items: center; justify-content: center; min-height: 220px; margin-bottom: 20px;
+    }
+    .scan-detail-img-wrap canvas { display: block; max-width: 100%; }
+    .scan-detail-img-loading, .scan-detail-img-error {
+      color: var(--muted); font-size: 0.84rem; font-weight: 500;
+      display: flex; align-items: center; gap: 10px; padding: 40px;
+    }
+    .scan-detail-img-error { flex-direction: column; text-align: center; padding: 48px 20px; }
+    .scan-detail-img-error svg { opacity: 0.25; margin-bottom: 6px; }
+    .spin { animation: rotate 1s linear infinite; }
+    @keyframes rotate { to { transform: rotate(360deg); } }
+    .scan-summary-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+    .scan-summary-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 0.73rem; font-weight: 700; padding: 4px 12px; border-radius: 20px;
+    }
+    .scan-summary-chip.blue    { background: var(--blue-dim);  color: var(--blue-b); border: 1px solid rgba(59,130,246,0.2); }
+    .scan-summary-chip.green   { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green-b); }
+    .scan-summary-chip.red     { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red-b); }
+    .scan-summary-chip.neutral { background: rgba(68,80,112,0.2); color: var(--muted); border: 1px solid rgba(68,80,112,0.3); }
+    .person-cards-label { font-size: 0.68rem; font-weight: 700; color: var(--dim); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; }
+    .person-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+    .person-mini-card {
+      border: 1px solid var(--glass-b); border-radius: var(--r-md);
+      padding: 14px 16px; background: var(--glass);
+      cursor: pointer; transition: all 0.2s;
+      backdrop-filter: var(--blur-sm);
+    }
+    .person-mini-card:hover { background: var(--glass-h); border-color: var(--glass-bh); transform: translateY(-2px); }
+    .person-mini-card.compliant {
+      background: linear-gradient(145deg, rgba(34,197,94,0.10) 0%, rgba(34,197,94,0.04) 45%, var(--glass) 100%);
+      border-color: rgba(34,197,94,0.18);
+    }
+    .person-mini-card.violation {
+      background: linear-gradient(145deg, rgba(248,113,113,0.10) 0%, rgba(248,113,113,0.04) 45%, var(--glass) 100%);
+      border-color: rgba(248,113,113,0.18);
+    }
+    .person-mini-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .person-mini-name { font-weight: 700; font-size: 0.85rem; color: var(--text); }
+    .person-mini-ppe  { display: flex; gap: 5px; flex-wrap: wrap; }
+    .ppe-mini-chip {
+      font-size: 0.67rem; font-weight: 700; padding: 2px 8px; border-radius: 4px;
+      display: inline-flex; align-items: center; gap: 3px;
+    }
+    .ppe-mini-chip.worn    { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-b); }
+    .ppe-mini-chip.missing { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red-b); }
+    .ppe-mini-chip.na      { background: rgba(68,80,112,0.15); color: var(--dim); border: 1px solid rgba(68,80,112,0.2); }
+
+    /* ═══════════════════════════════════════
+       TOAST
+    ═══════════════════════════════════════ */
+    .toast {
+      position: fixed; bottom: 28px; right: 28px; z-index: 999;
+      background: rgba(8,12,28,0.95);
+      border: 1px solid rgba(255,255,255,0.1);
+      backdrop-filter: blur(24px); color: var(--text);
+      font-size: 0.84rem; font-weight: 600;
+      padding: 13px 22px; border-radius: var(--r-md);
+      box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+      display: flex; align-items: center; gap: 10px;
+      transform: translateY(80px); opacity: 0;
+      transition: all 0.28s cubic-bezier(0.34,1.56,0.64,1);
+      pointer-events: none;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast-icon { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .toast-icon.success { background: rgba(34,197,94,0.2); color: var(--green); }
+    .toast-icon.info    { background: var(--blue-dim); color: var(--blue-b); }
+    .toast-icon.warning { background: rgba(251,191,36,0.1); color: var(--amber); }
+
+    /* ═══════════════════════════════════════
+       FOOTER
+    ═══════════════════════════════════════ */
+    .footer {
+      border-top: 1px solid var(--glass-b);
+      background: rgba(4,6,15,0.8);
+      backdrop-filter: blur(24px);
+      padding: 40px 52px;
+      margin-top: 80px;
+    }
+    .footer-inner {
+      max-width: 1120px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 24px;
+    }
+    .footer-brand { display: flex; align-items: center; gap: 10px; }
+    .footer-logo-icon {
+      width: 32px; height: 32px; border-radius: 9px;
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 16px rgba(59,130,246,0.4);
+    }
+    .footer-name {
+      font-size: 0.95rem; font-weight: 800; color: var(--text); letter-spacing: -0.02em;
+    }
+    .footer-tagline {
+      font-size: 0.75rem; color: var(--muted); margin-top: 1px;
+    }
+    .footer-center { text-align: center; }
+    .footer-credits {
+      font-size: 0.78rem; color: var(--muted); line-height: 1.7;
+    }
+    .footer-credits strong { color: var(--text2); font-weight: 700; }
+    .footer-credits .heart { color: var(--red); }
+    .footer-stack {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end;
+    }
+    .footer-chip {
+      display: flex; align-items: center; gap: 5px;
+      background: var(--glass); border: 1px solid var(--glass-b);
+      border-radius: 50px; padding: 4px 12px;
+      font-size: 0.7rem; font-weight: 600; color: var(--muted);
+      backdrop-filter: var(--blur-sm);
+    }
+    .footer-chip-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--blue); }
+    .footer-bottom {
+      max-width: 1120px; margin: 24px auto 0;
+      padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.04);
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px;
+    }
+    .footer-copy { font-size: 0.72rem; color: var(--dim); }
+    .footer-credit-bottom {
+      font-size: 0.72rem; color: var(--dim);
+    }
+    .footer-credit-bottom strong { color: var(--muted); font-weight: 700; }
+    .footer-links { display: flex; gap: 20px; }
+    .footer-link { font-size: 0.72rem; color: var(--dim); text-decoration: none; transition: color 0.15s; cursor: default; }
+    .footer-link:hover { color: var(--muted); }
+    .btn-clear-history {
+      display: inline-flex; align-items: center; gap: 7px;
+      background: rgba(248,113,113,0.08); color: var(--red);
+      border: 1px solid rgba(248,113,113,0.2);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 0.8rem; font-weight: 700;
+      padding: 8px 16px; border-radius: 50px; cursor: pointer;
+      transition: all 0.15s; letter-spacing: -0.01em;
+    }
+    .btn-clear-history:hover { background: rgba(248,113,113,0.15); border-color: rgba(248,113,113,0.4); }
+
+    /* ═══════════════════════════════════════
+       RESPONSIVE
+    ═══════════════════════════════════════ */
+    @media (max-width: 900px) {
+      .nav { padding: 0 20px; }
+      .hero { padding: 60px 20px 40px; }
+      .hero-inner { grid-template-columns: 1fr; gap: 40px; }
+      .hero-right { min-height: 280px; }
+      .section { padding: 56px 20px; }
+      .trust-bar, .footer { padding: 18px 20px; }
+      .trust-inner { gap: 16px; }
+      .upload-grid { grid-template-columns: 1fr; gap: 28px; }
+      .how-grid { grid-template-columns: 1fr; }
+      .stats-row { grid-template-columns: 1fr 1fr; }
+      .footer-inner { flex-direction: column; align-items: flex-start; }
+      .footer-stack { justify-content: flex-start; }
+    }
+    @media (max-width: 600px) {
+      .hero h1 { font-size: 2.2rem; }
+      .stats-row { grid-template-columns: 1fr 1fr; }
+      .nav-btn-ghost { display: none; }
+      .modal-lg { width: 100% !important; }
+      .fc-1, .fc-2 { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Background -->
+<div class="bg-scene" aria-hidden="true">
+  <div class="bg-grad"></div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+  <div class="bg-grid"></div>
+  <div class="bg-lines"></div>
+</div>
+
+<div class="page-wrap">
+
+<!-- ══ TOAST ══════════════════════════════════════════════════════ -->
+<div class="toast" id="toast">
+  <div class="toast-icon" id="toastIcon"></div>
+  <span id="toastMsg"></span>
+</div>
+
+<!-- ══ NAV ════════════════════════════════════════════════════════ -->
+<nav class="nav">
+  <div class="nav-logo">
+    <div class="nav-logo-icon">
+      <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+    </div>
+    SafeScan
+  </div>
+  <div class="nav-right">
+    <button class="nav-btn nav-btn-ghost" onclick="openSettings()">
+      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Settings
+    </button>
+    <button class="nav-btn nav-btn-blue" onclick="document.getElementById('fileInput').click()">Upload Image</button>
+  </div>
+</nav>
+
+<!-- ══ HERO ═══════════════════════════════════════════════════════ -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-left">
+      <div class="eyebrow"><span class="eyebrow-dot"></span>AI-Powered Workplace Safety</div>
+      <h1>Keep Your Worksite<br><span class="accent">Safe & Compliant</span></h1>
+      <p class="hero-sub">Upload a photo of your construction site and SafeScan automatically detects PPE violations in seconds — no manual checking required.</p>
+      <div class="hero-cta">
+        <button class="btn-blue" onclick="document.getElementById('analyzeSection').scrollIntoView({behavior:'smooth'})">
+          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></svg>
+          Analyze an Image
+        </button>
+        <button class="btn-glass" onclick="document.getElementById('resultsSection').scrollIntoView({behavior:'smooth'})">View Dashboard</button>
+      </div>
+    </div>
+
+    <div class="hero-right">
+      <div class="float-card fc-1">
+        <div class="float-card-num" id="heroStatTotal">—</div>
+        <div class="float-card-sub">Total Scans</div>
+      </div>
+      <div class="hero-card-main">
+        <div class="hcm-header">
+          <div class="hcm-title">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--blue-b);display:inline;margin-right:5px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+            Live Compliance
+          </div>
+          <div class="live-pill"><span class="live-dot"></span>Live</div>
+        </div>
+        <div class="hcm-stats">
+          <div class="hcm-stat"><div class="hcm-num blue" id="heroStatScansBig">—</div><div class="hcm-label">Scans</div></div>
+          <div class="hcm-stat"><div class="hcm-num green" id="heroStatCompliant">—</div><div class="hcm-label">Compliant</div></div>
+          <div class="hcm-stat"><div class="hcm-num red" id="heroStatViolations">—</div><div class="hcm-label">Violations</div></div>
+        </div>
+      </div>
+      <div class="float-card fc-2">
+        <div style="font-size:0.65rem;color:var(--muted);margin-bottom:3px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;">Detection Engine</div>
+        <div style="font-weight:700;color:var(--text);font-size:0.82rem;">AWS Rekognition</div>
+        <div style="font-size:0.68rem;color:var(--green);margin-top:3px;font-weight:600;">● Active</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ TRUST BAR ═══════════════════════════════════════════════════ -->
+<div class="trust-bar">
+  <div class="trust-inner">
+    <span class="trust-label">Built On</span>
+  </div>
+  <div class="trust-track">
+    <!-- Marquee: chips duplicated for seamless loop -->
+    <div class="trust-chips" id="trustChips">
+      <!-- set 1 -->
+      <div class="trust-chip">
+        <div class="trust-chip-ico" style="background:rgba(63,134,36,0.15);border:1px solid rgba(63,134,36,0.3);overflow:hidden;padding:0;">
+          <img src="logos/s3.png" alt="Amazon S3" width="28" height="28" style="display:block;width:28px;height:28px;object-fit:cover;border-radius:6px;" onerror="this.style.display='none';this.parentElement.innerHTML='<svg width=\'20\' height=\'20\' viewBox=\'0 0 80 80\' fill=\'none\'><path d=\'M40 8L8 22v36l32 14 32-14V22L40 8z\' fill=\'#3F8624\' opacity=\'0.9\'/></svg>';">
+        </div>
+        Amazon S3
+      </div>
+      <div class="trust-chip">
+        <div class="trust-chip-ico" style="background:rgba(255,153,0,0.15);border:1px solid rgba(255,153,0,0.3);overflow:hidden;padding:0;">
+          <img src="logos/lambda.png" alt="AWS Lambda" width="28" height="28" style="display:block;width:28px;height:28px;object-fit:cover;border-radius:6px;" onerror="this.style.display='none';this.parentElement.innerHTML='<svg width=\'20\' height=\'20\' viewBox=\'0 0 80 80\' fill=\'none\'><path d=\'M18 64l14-30 8 16 8-20 14 34\' stroke=\'#FF9900\' stroke-width=\'5\' fill=\'none\'/></svg>';">
+        </div>
+        AWS Lambda
+      </div>
+      <div class="trust-chip">
+        <div class="trust-chip-ico" style="background:rgba(1,168,141,0.15);border:1px solid rgba(1,168,141,0.3);overflow:hidden;padding:0;">
+          <img src="logos/rekognition.png" alt="Rekognition" width="28" height="28" style="display:block;width:28px;height:28px;object-fit:cover;border-radius:6px;" onerror="this.style.display='none';this.parentElement.innerHTML='<svg width=\'20\' height=\'20\' viewBox=\'0 0 80 80\' fill=\'none\'><ellipse cx=\'40\' cy=\'40\' rx=\'28\' ry=\'18\' stroke=\'#01A88D\' stroke-width=\'5\' fill=\'none\'/></svg>';">
+        </div>
+        Rekognition
+      </div>
+      <div class="trust-chip">
+        <div class="trust-chip-ico" style="background:rgba(64,83,214,0.15);border:1px solid rgba(64,83,214,0.35);overflow:hidden;padding:0;">
+          <img src="logos/dynamodb.png" alt="DynamoDB" width="28" height="28" style="display:block;width:28px;height:28px;object-fit:cover;border-radius:6px;" onerror="this.style.display='none';this.parentElement.innerHTML='<svg width=\'20\' height=\'20\' viewBox=\'0 0 80 80\' fill=\'none\'><ellipse cx=\'40\' cy=\'20\' rx=\'24\' ry=\'10\' fill=\'#4053D6\' opacity=\'0.9\'/></svg>';">
+        </div>
+        DynamoDB
+      </div>
+      <div class="trust-chip">
+        <div class="trust-chip-ico" style="background:rgba(160,32,240,0.15);border:1px solid rgba(160,32,240,0.3);overflow:hidden;padding:0;">
+          <img src="logos/apigateway.png" alt="API Gateway" width="28" height="28" style="display:block;width:28px;height:28px;object-fit:cover;border-radius:6px;" onerror="this.style.display='none';this.parentElement.innerHTML='<svg width=\'20\' height=\'20\' viewBox=\'0 0 80 80\' fill=\'none\'><circle cx=\'40\' cy=\'40\' r=\'28\' stroke=\'#A020F0\' stroke-width=\'5\' fill=\'none\'/></svg>';">
+        </div>
+        API Gateway
+      </div>
+      <!-- set 2 (duplicate for seamless loop) -->
+      <div class="trust-chip">
+        <div class="trust-chip-ico" style="background:rgba(63,134,36,0.15);border:1px solid rgba(63,134,36,0.3);overflow:hidden;padding:0;">
+          <img src="logos/s3.png" alt="Amazon S3" width="28" height="28" style="display:block;width:28px;height:28px;object-fit:cover;border-radius:6px;">
+        </div>
+        Amazon S3
+      </div>
+      <div class="trust-chip">
+        <div class="trust-chip-ico" style="background:rgba(255,153,0,0.15);border:1px solid rgba(255,153,0,0.3);overflow:hidden;padding:0;">
+          <img src="logos/lambda.png" alt="AWS Lambda" width="28" height="28" style="display:block;width:28px;height:28px;object-fit:cover;border-radius:6px;">
+        </div>
+        AWS Lambda
+      </div>
+      <div class="trust-chip">
+        <div class="trust-chip-ico" style="background:rgba(1,168,141,0.15);border:1px solid rgba(1,168,141,0.3);overflow:hidden;padding:0;">
+          <img src="logos/rekognition.png" alt="Rekognition" width="28" height="28" style="display:block;width:28px;height:28px;object-fit:cover;border-radius:6px;">
+        </div>
+        Rekognition
+      </div>
+      <div class="trust-chip">
+        <div class="trust-chip-ico" style="background:rgba(64,83,214,0.15);border:1px solid rgba(64,83,214,0.35);overflow:hidden;padding:0;">
+          <img src="logos/dynamodb.png" alt="DynamoDB" width="28" height="28" style="display:block;width:28px;height:28px;object-fit:cover;border-radius:6px;">
+        </div>
+        DynamoDB
+      </div>
+      <div class="trust-chip">
+        <div class="trust-chip-ico" style="background:rgba(160,32,240,0.15);border:1px solid rgba(160,32,240,0.3);overflow:hidden;padding:0;">
+          <img src="logos/apigateway.png" alt="API Gateway" width="28" height="28" style="display:block;width:28px;height:28px;object-fit:cover;border-radius:6px;">
+        </div>
+        API Gateway
+      </div>
+    </div><!-- /trust-chips -->
+  </div><!-- /trust-track -->
+</div><!-- /trust-bar -->
+
+<hr class="section-sep">
+
+<!-- ══ UPLOAD SECTION ══════════════════════════════════════════════ -->
+<section id="analyzeSection">
+  <div class="section">
+    <div class="eyebrow"><span class="eyebrow-dot"></span>Analyze Image</div>
+    <h2 class="section-title">Upload a Site Photo to <span class="accent">Detect PPE</span></h2>
+    <p class="section-sub">Drag and drop or browse — results appear in the dashboard below within seconds.</p>
+    <div class="upload-grid">
+      <div>
+        <div class="preview-wrap" id="previewWrap"><canvas id="previewCanvas"></canvas></div>
+        <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+          <input type="file" id="fileInput" accept="image/jpeg,image/png" onchange="onFileSelect(event)">
+          <div class="dz-icon-wrap"><svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></svg></div>
+          <div class="dz-title">Drag &amp; drop your image here</div>
+          <div class="dz-sub">or click to browse from your device</div>
+          <div class="dz-formats"><span class="dz-fmt">JPG</span><span class="dz-fmt">PNG</span></div>
+        </div>
+        <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px;">
+          <div class="upload-btn-row">
+            <button class="btn-primary" onclick="document.getElementById('fileInput').click()">
+              <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+              Select File
+            </button>
+            <button class="btn-ghost-sm" onclick="openSettings()">
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+              Settings
+            </button>
+          </div>
+          <div class="status-pill" id="statusPill"><span class="status-dot"></span><span id="statusText">Ready to scan</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="feature-list">
+          <div class="feature-row">
+            <div class="feature-row-icon"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-4.97 0-9 3.134-9 7h18c0-3.866-4.03-7-9-7z"/><path d="M3 10v2a2 2 0 002 2h14a2 2 0 002-2v-2"/><line x1="2" y1="14" x2="22" y2="14"/></svg></div>
+            <div><div class="feature-row-title">Head Cover Detection</div><div class="feature-row-desc">Identifies whether each detected person is wearing a safety helmet or hard hat, with confidence percentage.</div></div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-row-icon"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v11m0 0H5a2 2 0 01-2-2V9m6 5h10a2 2 0 002-2V9m0 0H3"/></svg></div>
+            <div><div class="feature-row-title">Face Cover Detection</div><div class="feature-row-desc">Detects face masks and respirators, flagging any person without required face protection.</div></div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-row-icon"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 00-2-2 2 2 0 00-2 2v0M14 10V4a2 2 0 00-2-2 2 2 0 00-2 2v2M10 10.5V6a2 2 0 00-2-2 2 2 0 00-2 2v8l-1.55-1.55a2 2 0 00-2.83 2.83l3.75 3.75A6 6 0 0013.84 21H16a6 6 0 006-6v-5a2 2 0 00-2-2 2 2 0 00-2 2v1"/></svg></div>
+            <div><div class="feature-row-title">Hand Cover Detection</div><div class="feature-row-desc">Checks both left and right hands for gloves and protective coverings independently.</div></div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-row-icon"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>
+            <div><div class="feature-row-title">Multi-Person Analysis</div><div class="feature-row-desc">Scans every person detected in the image simultaneously, with per-person compliance status and bounding boxes.</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-sep">
+
+<!-- ══ HOW IT WORKS ════════════════════════════════════════════════ -->
+<section>
+  <div class="section" style="padding-bottom:72px;">
+    <div class="eyebrow"><span class="eyebrow-dot"></span>How It Works</div>
+    <h2 class="section-title">From Upload to <span class="accent">Results</span> in Seconds</h2>
+    <div class="how-grid">
+      <div class="how-card blue-card">
+        <div class="how-num">01</div>
+        <div class="how-step-icon"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></svg></div>
+        <div class="how-step-title">Upload Image</div>
+        <div class="how-step-desc">Select or drag a JPG/PNG of your job site. The file goes directly to Amazon S3 via a secure PUT request.</div>
+      </div>
+      <div class="how-card">
+        <div class="how-num">02</div>
+        <div class="how-step-icon"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+        <div class="how-step-title">Lambda Triggers</div>
+        <div class="how-step-desc">An S3 event fires automatically, waking your Lambda function without any server running idle.</div>
+      </div>
+      <div class="how-card">
+        <div class="how-num">03</div>
+        <div class="how-step-icon"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>
+        <div class="how-step-title">Rekognition Scans</div>
+        <div class="how-step-desc">AWS AI checks every person in the image for head, face, and hand protection with confidence scores.</div>
+      </div>
+      <div class="how-card blue-card">
+        <div class="how-num">04</div>
+        <div class="how-step-icon"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+        <div class="how-step-title">Results Saved</div>
+        <div class="how-step-desc">Per-person compliance data is stored in DynamoDB and rendered instantly in the dashboard below.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-sep">
+
+<!-- ══ RESULTS ════════════════════════════════════════════════════ -->
+<section id="resultsSection">
+  <div class="section">
+    <div class="eyebrow"><span class="eyebrow-dot"></span>Compliance Dashboard</div>
+    <h2 class="section-title" style="margin-bottom:32px;">PPE Analysis <span class="accent">Results</span></h2>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-card-label">Total Scans</div><div class="stat-card-num blue" id="statTotal">—</div><div class="stat-card-sub">Images analyzed</div></div>
+      <div class="stat-card"><div class="stat-card-label">Persons Detected</div><div class="stat-card-num" id="statPersons">—</div><div class="stat-card-sub">Across all scans</div></div>
+      <div class="stat-card stat-card--green"><div class="stat-card-label">Compliant</div><div class="stat-card-num green" id="statCompliant">—</div><div class="stat-card-sub">Wearing required PPE</div></div>
+      <div class="stat-card stat-card--red"><div class="stat-card-label">Violations</div><div class="stat-card-num red" id="statViolating">—</div><div class="stat-card-sub">Missing PPE detected</div></div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+      <div class="tabs" style="margin-bottom:0;">
+        <button class="tab active" data-tab="history" onclick="switchTab('history')">
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Scan History
+        </button>
+        <button class="tab" data-tab="ppedata" onclick="switchTab('ppedata')">
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+          PPE Data
+        </button>
+      </div>
+
+    </div>
+    <div class="tab-panel active" id="tab-history">
+      <div id="historyList"><div class="no-results"><div class="no-results-icon"><svg width="44" height="44" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg></div>No scans yet — upload a photo above to get started.</div></div>
+    </div>
+    <div class="tab-panel" id="tab-ppedata">
+      <div class="ppe-table-wrap" id="ppeDataTable"><div class="no-results"><div class="no-results-icon"><svg width="44" height="44" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>No per-person data yet.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ FOOTER ═════════════════════════════════════════════════════ -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <div class="footer-logo-icon"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg></div>
+      <div>
+        <div class="footer-name">SafeScan</div>
+        <div class="footer-tagline">PPE Compliance Detection</div>
+      </div>
+    </div>
+
+    <div class="footer-stack">
+      <div class="footer-chip"><span class="footer-chip-dot"></span>Amazon S3</div>
+      <div class="footer-chip"><span class="footer-chip-dot"></span>AWS Lambda</div>
+      <div class="footer-chip"><span class="footer-chip-dot"></span>Rekognition</div>
+      <div class="footer-chip"><span class="footer-chip-dot"></span>DynamoDB</div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="footer-copy">© 2025 SafeScan. All rights reserved.</div>
+    <div class="footer-credit-bottom">by <strong>Alea Escala</strong></div>
+  </div>
+</footer>
+
+</div><!-- /page-wrap -->
+
+<!-- ══ SETTINGS MODAL ═════════════════════════════════════════════ -->
+<div class="modal-overlay" id="settingsOverlay" onclick="closeSettingsOutside(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title"><div class="modal-title-icon"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></div>Detection Settings</div>
+      <button class="modal-close" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-label"><span class="field-label-icon"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>Required PPE Items</div>
+      <div class="field-desc">Select which PPE items are required. All checked items must be worn for a person to be compliant.</div>
+      <div class="ppe-check-grid">
+        <label class="ppe-check-item"><input type="checkbox" id="chk-helmet" checked><span class="ppe-check-item-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-4.97 0-9 3.134-9 7h18c0-3.866-4.03-7-9-7z"/><path d="M3 10v2a2 2 0 002 2h14a2 2 0 002-2v-2"/><line x1="2" y1="14" x2="22" y2="14"/></svg></span>Head Cover</label>
+        <label class="ppe-check-item"><input type="checkbox" id="chk-mask" checked><span class="ppe-check-item-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v11m0 0H5a2 2 0 01-2-2V9m6 5h10a2 2 0 002-2V9m0 0H3"/></svg></span>Face Cover</label>
+        <label class="ppe-check-item"><input type="checkbox" id="chk-hands" checked><span class="ppe-check-item-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 00-2-2 2 2 0 00-2 2v0M14 10V4a2 2 0 00-2-2 2 2 0 00-2 2v2M10 10.5V6a2 2 0 00-2-2 2 2 0 00-2 2v8l-1.55-1.55a2 2 0 00-2.83 2.83l3.75 3.75A6 6 0 0013.84 21H16a6 6 0 006-6v-5a2 2 0 00-2-2 2 2 0 00-2 2v1"/></svg></span>Hand Cover</label>
+      </div>
+      <hr class="modal-divider">
+      <div class="field-label"><span class="field-label-icon"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>Confidence Threshold</div>
+      <div class="slider-row">
+        <input type="range" id="confidenceSlider" min="50" max="99" value="80" oninput="document.getElementById('confVal').textContent=this.value+'%'">
+        <span class="slider-val" id="confVal">80%</span>
+      </div>
+      <div class="field-desc">Minimum confidence for a detection to count. Recommended: 80%.</div>
+      <hr class="modal-divider">
+      <div class="toggle-row">
+        <label class="toggle-switch"><input type="checkbox" id="strictMode"><span class="toggle-knob"></span></label>
+        <div class="toggle-label"><div class="tl-title">Strict Mode</div><div class="tl-desc">Require all three PPE types regardless of the checkboxes above.</div></div>
+      </div>
+      <button class="btn-save" onclick="saveSettings()">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Save Settings
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SCAN DETAIL MODAL ══════════════════════════════════════════ -->
+<div class="modal-overlay" id="scanDetailOverlay" onclick="closeScanDetailOutside(event)">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div class="modal-title" id="scanDetailTitle"><div class="modal-title-icon"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>Scan Detail</div>
+      <button class="modal-close" onclick="closeScanDetail()">✕</button>
+    </div>
+    <div class="modal-body" id="scanDetailBody"></div>
+  </div>
+</div>
+
+<!-- ══ PERSON DETAIL MODAL ════════════════════════════════════════ -->
+<div class="modal-overlay" id="personOverlay" onclick="closePersonOutside(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="personModalTitle"><div class="modal-title-icon"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>Person Analysis</div>
+      <button class="modal-close" onclick="closePerson()">✕</button>
+    </div>
+    <div class="modal-body" id="personModalBody"></div>
+  </div>
+</div>
+
+<script>
+const API_URL = 'https://yb4or9ydol.execute-api.us-east-1.amazonaws.com/default/PPEGetResults';
+const BUCKET  = 'ppe-detection-app-uploads-12344';
+const REGION  = 'us-east-1';
+const PPE_LABELS = { HEAD_COVER: 'Helmet', FACE_COVER: 'Face Mask', HAND_COVER: 'Hand Cover' };
+
+let allResults = [], lastImage = null, userInitiatedScan = false;
+let settings = { requireHelmet: true, requireMask: true, requireHands: true, confidence: 80, strictMode: false };
+
+function evaluateCompliance(person) {
+  const detected = person.detectedPPE || [];
+  const has = t => detected.some(i => i.type===t && i.coversBodyPart && (i.confidence||0)>=settings.confidence);
+  if (settings.strictMode) return has('HEAD_COVER') && has('FACE_COVER') && has('HAND_COVER');
+  let ok = true;
+  if (settings.requireHelmet && !has('HEAD_COVER')) ok = false;
+  if (settings.requireMask   && !has('FACE_COVER')) ok = false;
+  if (settings.requireHands  && !has('HAND_COVER')) ok = false;
+  return ok;
+}
+function getMissingPPE(person) {
+  const detected = person.detectedPPE || [];
+  const has = t => detected.some(i => i.type===t && i.coversBodyPart && (i.confidence||0)>=settings.confidence);
+  if (settings.strictMode) return ['HEAD_COVER','FACE_COVER','HAND_COVER'].filter(t => !has(t));
+  const r = [];
+  if (settings.requireHelmet && !has('HEAD_COVER')) r.push('HEAD_COVER');
+  if (settings.requireMask   && !has('FACE_COVER')) r.push('FACE_COVER');
+  if (settings.requireHands  && !has('HAND_COVER')) r.push('HAND_COVER');
+  return r;
+}
+function applySettings(items) {
+  return items.map(item => {
+    const detail = (item.personsDetail||[]).map(p => ({...p, isCompliant: evaluateCompliance(p)}));
+    const detected = item.personsDetected || detail.length || 0;
+    const violating = detail.filter(p => !p.isCompliant).length;
+    const compliant = detail.filter(p => p.isCompliant).length;
+    const computedStatus = detected===0 ? 'NO_PERSONS' : violating>0 ? 'VIOLATION_DETECTED' : 'ALL_CLEAR';
+    return {...item, personsDetail: detail, personsCompliant: compliant, personsViolating: violating, computedStatus};
+  });
+}
+
+let toastTimer;
+function showToast(msg, type='success') {
+  const svg = { success:`<svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`, info:`<svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`, warning:`<svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>` };
+  document.getElementById('toastIcon').className=`toast-icon ${type}`;
+  document.getElementById('toastIcon').innerHTML=svg[type]||svg.info;
+  document.getElementById('toastMsg').textContent=msg;
+  document.getElementById('toast').classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>document.getElementById('toast').classList.remove('show'),3200);
+}
+function setStatus(msg,type='') { document.getElementById('statusPill').className='status-pill'+(type?' '+type:''); document.getElementById('statusText').textContent=msg; }
+function switchTab(name) { document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name)); document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='tab-'+name)); }
+
+function onDragOver(e) { e.preventDefault(); document.getElementById('dropZone').classList.add('dragover'); }
+function onDragLeave()  { document.getElementById('dropZone').classList.remove('dragover'); }
+function onDrop(e) { e.preventDefault(); document.getElementById('dropZone').classList.remove('dragover'); const f=e.dataTransfer.files[0]; if(f&&(f.type==='image/jpeg'||f.type==='image/png')) processFile(f); else setStatus('Please upload a JPG or PNG image.','error'); }
+function onFileSelect(e) { const f=e.target.files[0]; if(f) processFile(f); }
+
+function processFile(file) {
+  const reader=new FileReader();
+  reader.onload=ev=>{ const img=new Image(); img.onload=()=>{lastImage=img;drawPreview(img,[])}; img.src=ev.target.result; document.getElementById('previewWrap').style.display='block'; document.getElementById('dropZone').style.display='none'; };
+  reader.readAsDataURL(file);
+  setStatus(`Selected: ${file.name}`,'');
+  userInitiatedScan=true;
+  uploadFile(file);
+}
+async function uploadFile(file) {
+  const key=`uploads/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g,'_')}`;
+  const url=`https://${BUCKET}.s3.${REGION}.amazonaws.com/${key}`;
+  setStatus('Uploading to S3…','uploading');
+  try {
+    const resp=await fetch(url,{method:'PUT',body:file,headers:{'Content-Type':file.type}});
+    if(resp.ok||resp.status===200||resp.status===204) {
+      setStatus('Uploaded — running PPE analysis (5–15 sec)…','uploading');
+      showToast('Image uploaded. Scanning for PPE…','info');
+      setTimeout(loadResults,7000);
+      setTimeout(()=>{if(userInitiatedScan)loadResults();},14000);
+    } else { setStatus(`Upload failed (HTTP ${resp.status}). Check bucket policy.`,'error'); userInitiatedScan=false; }
+  } catch { setStatus('Network error. Check CORS and bucket policy.','error'); userInitiatedScan=false; }
+}
+
+function drawAnnotations(ctx,cw,ch,persons) {
+  persons.forEach((person,idx)=>{
+    const pb=person.bbox; if(!pb||!pb.Width) return;
+    const x=pb.Left*cw,y=pb.Top*ch,w=pb.Width*cw,h=pb.Height*ch;
+    const color=person.isCompliant?'#22c55e':'#f87171';
+    ctx.strokeStyle=color; ctx.lineWidth=2.5; ctx.strokeRect(x,y,w,h);
+    const lbl=`Person ${idx+1}  ${person.isCompliant?'✓ Compliant':'✗ Violation'}`;
+    ctx.font='bold 11px Plus Jakarta Sans, sans-serif';
+    const lw=ctx.measureText(lbl).width+14;
+    ctx.fillStyle=color;
+    if(ctx.roundRect){ctx.beginPath();ctx.roundRect(x,y-24,lw,22,4);ctx.fill();}else ctx.fillRect(x,y-24,lw,22);
+    ctx.fillStyle='#fff'; ctx.fillText(lbl,x+7,y-8);
+    (person.detectedPPE||[]).forEach(item=>{
+      const ib=item.bbox; if(!ib||!ib.Width) return;
+      const ix=ib.Left*cw,iy=ib.Top*ch,iw=ib.Width*cw,ih=ib.Height*ch;
+      const ic=item.coversBodyPart?'#86efac':'#fca5a5';
+      ctx.strokeStyle=ic; ctx.lineWidth=1.5; ctx.strokeRect(ix,iy,iw,ih);
+      const tl=PPE_LABELS[item.type]||item.type.replace(/_/g,' ');
+      ctx.font='bold 9px Plus Jakarta Sans, sans-serif';
+      const tw=ctx.measureText(tl).width+8;
+      ctx.fillStyle=ic; ctx.fillRect(ix,iy,tw,15);
+      ctx.fillStyle='#04060f'; ctx.fillText(tl,ix+4,iy+11);
+    });
+  });
+}
+function drawPreview(img,personsDetail) {
+  const canvas=document.getElementById('previewCanvas');
+  const maxW=document.getElementById('previewWrap').offsetWidth||500;
+  const scale=Math.min(1,maxW/img.naturalWidth);
+  canvas.width=img.naturalWidth*scale; canvas.height=img.naturalHeight*scale;
+  const ctx=canvas.getContext('2d');
+  ctx.drawImage(img,0,0,canvas.width,canvas.height);
+  drawAnnotations(ctx,canvas.width,canvas.height,personsDetail);
+}
+
+async function loadResults() {
+  const wasScan=userInitiatedScan;
+  try {
+    const res=await fetch(API_URL);
+    const data=await res.json();
+    let items=data;
+    if(data&&typeof data==='object'&&!Array.isArray(data)&&data.body) items=typeof data.body==='string'?JSON.parse(data.body):data.body;
+    if(!Array.isArray(items)) items=[];
+    allResults=items;
+    const evaluated=applySettings(items);
+    if(wasScan&&lastImage&&evaluated.length>0&&(evaluated[0].personsDetail||[]).length>0) {
+      drawPreview(lastImage,evaluated[0].personsDetail);
+      const s=evaluated[0].computedStatus;
+      if(s==='ALL_CLEAR') setStatus('Scan complete — All Clear','success');
+      else if(s==='VIOLATION_DETECTED') setStatus('Scan complete — Violation detected','error');
+      else setStatus('Scan complete — No persons detected','');
+      showToast('PPE scan complete. Results updated.','success');
+      userInitiatedScan=false;
+    } else if(wasScan&&lastImage&&evaluated.length>0&&(evaluated[0].personsDetail||[]).length===0) {
+      setStatus('Scan complete — No persons detected','');
+      showToast('Scan complete. No persons detected.','warning');
+      userInitiatedScan=false;
+    }
+    renderStats(evaluated); renderHistory(evaluated); renderPPETable(evaluated);
+    const clearBtn = document.getElementById('clearHistoryBtn');
+    if (clearBtn) clearBtn.style.display = items.length > 0 ? 'inline-flex' : 'none';
+  } catch {
+    if(userInitiatedScan) { document.getElementById('historyList').innerHTML=`<div class="no-results"><div class="no-results-icon" style="margin-bottom:12px;"><svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.3"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>Could not load results. Check your API URL.</div>`; userInitiatedScan=false; }
+  }
+}
+
+function renderStats(items) {
+  let persons=0,compliant=0,violating=0;
+  items.forEach(i=>{persons+=(i.personsDetected||(i.personsDetail||[]).length||0);compliant+=(i.personsCompliant||0);violating+=(i.personsViolating||0);});
+  ['statTotal','heroStatScansBig','heroStatTotal'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=items.length;});
+  document.getElementById('statPersons').textContent=persons;
+  ['statCompliant','heroStatCompliant'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=compliant;});
+  ['statViolating','heroStatViolations'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=violating;});
+}
+
+const icoCheck=`<svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+const icoWarning=`<svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+const icoPerson=`<svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+
+function renderHistory(items) {
+  const el=document.getElementById('historyList');
+  if(!items.length){el.innerHTML=`<div class="no-results"><div class="no-results-icon"><svg width="44" height="44" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg></div>No scans yet — upload a photo above.</div>`;return;}
+  el.innerHTML=items.map((item,idx)=>{
+    let cls,badge;
+    if(item.computedStatus==='ALL_CLEAR'){cls='clear';badge=`<span class="badge badge-clear">${icoCheck} All Clear</span>`;}
+    else if(item.computedStatus==='VIOLATION_DETECTED'){cls='violation';badge=`<span class="badge badge-violation">${icoWarning} Violation</span>`;}
+    else{cls='empty';badge=`<span class="badge badge-empty">${icoPerson} No Persons</span>`;}
+    const ts=new Date(item.timestamp+'Z').toLocaleString('en-PH',{timeZone:'Asia/Manila'});
+    const fname=(item.imageKey||'').split('/').pop();
+    const meta=item.personsDetected?`${item.personsDetected} person(s) <span class="result-meta-sep">·</span> ${item.personsCompliant} compliant <span class="result-meta-sep">·</span> ${item.personsViolating} violation(s)`:'No persons detected';
+    return `<div class="result-card ${cls}" onclick="showHistoryDetail(${idx})"><div><div class="result-filename">${fname}</div><div class="result-meta">${ts} <span class="result-meta-sep">·</span> ${meta}</div></div>${badge}</div>`;
+  }).join('');
+}
+
+function renderPPETable(items) {
+  const el=document.getElementById('ppeDataTable');
+  const rows=[];
+  items.forEach(item=>{const fname=(item.imageKey||'').split('/').pop();const ts=new Date(item.timestamp+'Z').toLocaleString('en-PH',{timeZone:'Asia/Manila'});(item.personsDetail||[]).forEach(p=>rows.push({fname,ts,person:p}));});
+  if(!rows.length){el.innerHTML=`<div class="no-results"><div class="no-results-icon"><svg width="44" height="44" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>No per-person data yet. Upload an image to begin.</div>`;return;}
+  el.innerHTML=`<table class="ppe-table"><thead><tr><th>Image</th><th>Person</th><th>Helmet</th><th>Face Mask</th><th>Hand Cover</th><th>Status</th><th></th></tr></thead>${rows.map((r,ri)=>{const p=r.person;const has=t=>(p.detectedPPE||[]).some(i=>i.type===t&&i.coversBodyPart&&(i.confidence||0)>=settings.confidence);const ico=v=>v?`<span style="color:var(--green);font-weight:700;display:inline-flex;align-items:center;gap:4px;">${icoCheck} Worn</span>`:`<span style="color:var(--red);font-weight:700;display:inline-flex;align-items:center;gap:4px;">${icoWarning} Missing</span>`;const sb=p.isCompliant?`<span class="badge badge-clear">${icoCheck} Compliant</span>`:`<span class="badge badge-violation">${icoWarning} Violation</span>`;const pName=(p.personId||`Person ${ri+1}`).replace(/_/g,' ');return `<tr><td style="color:var(--muted);font-size:0.78rem;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.fname}</td><td><strong>${pName}</strong></td><td>${ico(has('HEAD_COVER'))}</td><td>${ico(has('FACE_COVER'))}</td><td>${ico(has('HAND_COVER'))}</td><td>${sb}</td><td><button class="btn-detail" onclick='openPersonModal(${JSON.stringify(p).replace(/'/g,"&#39;")})'>Details</button></td></tr>`;}).join('')}</tbody></table>`;
+}
+
+function showHistoryDetail(idx) {
+  const item=allResults[idx]; if(!item) return;
+  const ev=applySettings([item])[0];
+  const persons=ev.personsDetail||[];
+  const fname=(item.imageKey||'').split('/').pop();
+  const ts=new Date(item.timestamp+'Z').toLocaleString('en-PH',{timeZone:'Asia/Manila'});
+  const imgUrl=item.imageKey?`https://${BUCKET}.s3.${REGION}.amazonaws.com/${item.imageKey}`:null;
+  const statusBadge=ev.computedStatus==='ALL_CLEAR'?`<span class="scan-summary-chip green">${icoCheck} All Clear</span>`:ev.computedStatus==='VIOLATION_DETECTED'?`<span class="scan-summary-chip red">${icoWarning} Violation Detected</span>`:`<span class="scan-summary-chip neutral">${icoPerson} No Persons</span>`;
+  const personCardsHtml=persons.length===0?`<div class="no-results" style="padding:24px 0;"><div class="no-results-icon"><svg width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>No persons detected.</div>`:persons.map((p,i)=>{const pName=(p.personId||`Person ${i+1}`).replace(/_/g,' ');const cls=p.isCompliant?'compliant':'violation';const badge=p.isCompliant?`<span class="badge badge-clear" style="margin-left:0;">${icoCheck} OK</span>`:`<span class="badge badge-violation" style="margin-left:0;">${icoWarning} Violation</span>`;const has=t=>(p.detectedPPE||[]).some(d=>d.type===t&&d.coversBodyPart&&(d.confidence||0)>=settings.confidence);const chip=(label,type)=>{const worn=has(type);const req=settings.strictMode||(type==='HEAD_COVER'&&settings.requireHelmet)||(type==='FACE_COVER'&&settings.requireMask)||(type==='HAND_COVER'&&settings.requireHands);if(!req)return`<span class="ppe-mini-chip na">${label}</span>`;return worn?`<span class="ppe-mini-chip worn">${icoCheck} ${label}</span>`:`<span class="ppe-mini-chip missing">${icoWarning} ${label}</span>`;};return`<div class="person-mini-card ${cls}" onclick='openPersonModal(${JSON.stringify(p).replace(/'/g,"&#39;")})' title="Click for details"><div class="person-mini-card-header"><div class="person-mini-name">${pName}</div>${badge}</div><div class="person-mini-ppe">${chip('Helmet','HEAD_COVER')}${chip('Mask','FACE_COVER')}${chip('Gloves','HAND_COVER')}</div></div>`;}).join('');
+  document.getElementById('scanDetailTitle').innerHTML=`<div class="modal-title-icon"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>${fname}`;
+  document.getElementById('scanDetailBody').innerHTML=`<div class="scan-summary-bar"><span class="scan-summary-chip blue">${icoPerson} ${persons.length} person${persons.length!==1?'s':''} detected</span>${statusBadge}<span style="font-size:0.73rem;color:var(--muted);margin-left:auto;">${ts}</span></div><div class="scan-detail-img-wrap" id="scanDetailImgWrap"><div class="scan-detail-img-loading"><svg class="spin" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity=".2"/><path d="M21 12a9 9 0 00-9-9"/></svg>Loading image…</div></div>${persons.length>0?`<div class="person-cards-label">Persons &amp; Compliance</div><div class="person-cards-grid">${personCardsHtml}</div>`:personCardsHtml}`;
+  document.getElementById('scanDetailOverlay').classList.add('open');
+  if(imgUrl){const img=new Image();img.crossOrigin='anonymous';img.onload=()=>{const wrap=document.getElementById('scanDetailImgWrap');if(!wrap)return;const maxW=Math.min(wrap.offsetWidth||780,780);const scale=Math.min(1,maxW/img.naturalWidth);const cvs=document.createElement('canvas');cvs.width=img.naturalWidth*scale;cvs.height=img.naturalHeight*scale;const ctx=cvs.getContext('2d');ctx.drawImage(img,0,0,cvs.width,cvs.height);drawAnnotations(ctx,cvs.width,cvs.height,persons);wrap.innerHTML='';wrap.appendChild(cvs);};img.onerror=()=>{const wrap=document.getElementById('scanDetailImgWrap');if(wrap)wrap.innerHTML=`<div class="scan-detail-img-error"><svg width="36" height="36" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>Image not accessible.<br><span style="font-size:0.72rem;">S3 bucket may not have public read enabled.</span></div>`;};img.src=imgUrl;}
+}
+function closeScanDetail(){document.getElementById('scanDetailOverlay').classList.remove('open');}
+function closeScanDetailOutside(e){if(e.target===document.getElementById('scanDetailOverlay'))closeScanDetail();}
+
+function openPersonModal(person,totalPersons) {
+  if(typeof person==='string') person=JSON.parse(person);
+  person={...person,isCompliant:evaluateCompliance(person)};
+  const pName=(person.personId||'Person').replace(/_/g,' ');
+  document.getElementById('personModalTitle').innerHTML=`<div class="modal-title-icon"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>${pName} Analysis`;
+  const missing=getMissingPPE(person);
+  const missingStr=missing.map(m=>PPE_LABELS[m]||m).join(', ');
+  const confPct=typeof person.confidence==='number'?person.confidence.toFixed(1):'—';
+  let html=`<div class="person-banner ${person.isCompliant?'compliant':'non-compliant'}"><div class="pb-title">${person.isCompliant?`<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Compliant`:`<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Non-Compliant`}</div>${!person.isCompliant?`<div class="pb-sub">Missing: <strong>${missingStr||'Unknown'}</strong></div>`:''}<div class="pb-sub">Detection Confidence: <strong>${confPct}%</strong>${totalPersons>1?` · ${totalPersons} persons in scan`:''}</div></div>`;
+  const detected=person.detectedPPE||[];
+  if(!detected.length){html+='<div class="no-results" style="padding:24px 0;">No PPE items detected on this person.</div>';}
+  else{html+='<div style="font-weight:700;font-size:0.68rem;color:var(--dim);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;">Detected PPE Items</div>';detected.forEach(item=>{const worn=item.coversBodyPart&&(item.confidence||0)>=settings.confidence;const label=PPE_LABELS[item.type]||item.type.replace(/_/g,' ');const bpart=(item.bodyPart||'').replace(/_/g,' ');html+=`<div class="ppe-item-card"><div><div class="ppe-item-type">${label}</div><div class="ppe-item-meta">Body part: <strong>${bpart}</strong> &nbsp;·&nbsp; Confidence: <strong>${typeof item.confidence==='number'?item.confidence.toFixed(1):'—'}%</strong></div></div><span class="badge ${worn?'badge-worn':'badge-missing'}">${worn?`${icoCheck} Worn`:`${icoWarning} Not Worn`}</span></div>`;});}
+  const detectedTypes=detected.map(i=>i.type);
+  const requiredTypes=[];
+  if(settings.strictMode)requiredTypes.push('HEAD_COVER','FACE_COVER','HAND_COVER');
+  else{if(settings.requireHelmet)requiredTypes.push('HEAD_COVER');if(settings.requireMask)requiredTypes.push('FACE_COVER');if(settings.requireHands)requiredTypes.push('HAND_COVER');}
+  const notDetected=requiredTypes.filter(t=>!detectedTypes.includes(t));
+  if(notDetected.length){html+='<div style="font-weight:700;font-size:0.68rem;color:var(--red);letter-spacing:0.08em;text-transform:uppercase;margin:16px 0 10px;">Not Detected — Required</div>';notDetected.forEach(t=>{const label=PPE_LABELS[t]||t.replace(/_/g,' ');html+=`<div class="ppe-item-card" style="border-color:var(--red-b);background:var(--red-bg);"><div><div class="ppe-item-type" style="color:var(--red);">${label}</div><div class="ppe-item-meta" style="color:var(--muted);">Required but not found in image</div></div><span class="badge badge-missing">${icoWarning} Missing</span></div>`;});}
+  document.getElementById('personModalBody').innerHTML=html;
+  document.getElementById('personOverlay').classList.add('open');
+}
+function closePerson(){document.getElementById('personOverlay').classList.remove('open');}
+function closePersonOutside(e){if(e.target===document.getElementById('personOverlay'))closePerson();}
+
+function openSettings(){document.getElementById('settingsOverlay').classList.add('open');}
+function closeSettings(){document.getElementById('settingsOverlay').classList.remove('open');}
+function closeSettingsOutside(e){if(e.target===document.getElementById('settingsOverlay'))closeSettings();}
+function saveSettings(){
+  settings.requireHelmet=document.getElementById('chk-helmet').checked;
+  settings.requireMask=document.getElementById('chk-mask').checked;
+  settings.requireHands=document.getElementById('chk-hands').checked;
+  settings.confidence=parseInt(document.getElementById('confidenceSlider').value);
+  settings.strictMode=document.getElementById('strictMode').checked;
+  closeSettings();
+  showToast('Settings saved and applied.','success');
+  if(allResults.length>0){const evaluated=applySettings(allResults);renderStats(evaluated);renderHistory(evaluated);renderPPETable(evaluated);if(lastImage&&evaluated.length>0&&(evaluated[0].personsDetail||[]).length>0)drawPreview(lastImage,evaluated[0].personsDetail);}
+}
+
+loadResults();
+setInterval(loadResults,15000);
+
+function confirmClearHistory() {
+  if (!allResults.length) return;
+  if (!confirm('Clear the displayed history?\n\nThis removes results from your view only. To permanently delete from DynamoDB, use the AWS Console.')) return;
+  clearHistory();
+}
+function clearHistory() {
+  allResults = [];
+  lastImage = null;
+  userInitiatedScan = false;
+  // Reset stats
+  ['statTotal','statPersons','statCompliant','statViolating',
+   'heroStatTotal','heroStatScansBig','heroStatCompliant','heroStatViolations'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '0';
+  });
+  // Reset lists
+  document.getElementById('historyList').innerHTML = `<div class="no-results"><div class="no-results-icon"><svg width="44" height="44" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg></div>History cleared. Upload a new photo to start fresh.</div>`;
+  document.getElementById('ppeDataTable').innerHTML = `<div class="no-results"><div class="no-results-icon"><svg width="44" height="44" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>No per-person data yet.</div>`;
+  // Hide clear button, reset preview
+  document.getElementById('clearHistoryBtn').style.display = 'none';
+  document.getElementById('previewWrap').style.display = 'none';
+  document.getElementById('dropZone').style.display = '';
+  setStatus('Ready to scan', '');
+  showToast('History cleared from view.', 'info');
+}
+</script>
+</body>
+</html>
