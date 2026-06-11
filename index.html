@@ -700,6 +700,23 @@
       display: flex; align-items: center; justify-content: center; min-height: 220px; margin-bottom: 20px;
     }
     .scan-detail-img-wrap canvas { display: block; max-width: 100%; }
+    /* Side-by-side compare */
+    .scan-compare-wrap {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+      margin-bottom: 20px;
+    }
+    .scan-compare-col { display: flex; flex-direction: column; gap: 6px; }
+    .scan-compare-label {
+      font-size: 0.65rem; font-weight: 800; color: var(--dim);
+      letter-spacing: 0.1em; text-transform: uppercase;
+    }
+    .scan-compare-img {
+      background: rgba(0,0,0,0.5); border: 1px solid var(--glass-b);
+      border-radius: var(--r-md); overflow: hidden;
+      display: flex; align-items: center; justify-content: center; min-height: 160px;
+    }
+    .scan-compare-img img,
+    .scan-compare-img canvas { display: block; width: 100%; height: auto; }
     .scan-detail-img-loading, .scan-detail-img-error {
       color: var(--muted); font-size: 0.84rem; font-weight: 500;
       display: flex; align-items: center; gap: 10px; padding: 40px;
@@ -1320,7 +1337,7 @@ function drawAnnotations(ctx,cw,ch,persons) {
     const x=pb.Left*cw,y=pb.Top*ch,w=pb.Width*cw,h=pb.Height*ch;
     const color=person.isCompliant?'#22c55e':'#f87171';
     ctx.strokeStyle=color; ctx.lineWidth=2.5; ctx.strokeRect(x,y,w,h);
-    const lbl=`Person ${idx+1}  ${person.isCompliant?'✓ Compliant':'✗ Violation'}`;
+    const lbl=`Person ${idx+1}`;
     ctx.font='bold 11px Plus Jakarta Sans, sans-serif';
     const lw=ctx.measureText(lbl).width+14;
     ctx.fillStyle=color;
@@ -1362,9 +1379,17 @@ async function loadResults() {
     if(wasScan&&lastImage&&evaluated.length>0&&(evaluated[0].personsDetail||[]).length>0) {
       drawPreview(lastImage,evaluated[0].personsDetail);
       const s=evaluated[0].computedStatus;
-      if(s==='ALL_CLEAR') setStatus('Scan complete — All Clear','success');
-      else if(s==='VIOLATION_DETECTED') setStatus('Scan complete — Violation detected','error');
-      else setStatus('Scan complete — No persons detected','');
+      if(s==='ALL_CLEAR') {
+        const total=evaluated[0].personsDetail.length;
+        setStatus(`Scan complete — All Clear · ${total} person${total!==1?'s':''} compliant`,'success');
+      } else if(s==='VIOLATION_DETECTED') {
+        const total=evaluated[0].personsDetail.length;
+        const viol=evaluated[0].personsViolating;
+        const comp=evaluated[0].personsCompliant;
+        setStatus(`Scan complete — ${viol} violation${viol!==1?'s':''} · ${comp}/${total} compliant`,'error');
+      } else {
+        setStatus('Scan complete — No persons detected','');
+      }
       showToast('PPE scan complete. Results updated.','success');
       userInitiatedScan=false;
     } else if(wasScan&&lastImage&&evaluated.length>0&&(evaluated[0].personsDetail||[]).length===0) {
@@ -1424,11 +1449,50 @@ function showHistoryDetail(idx) {
   const ts=new Date(item.timestamp+'Z').toLocaleString('en-PH',{timeZone:'Asia/Manila'});
   const imgUrl=item.imageKey?`https://${BUCKET}.s3.${REGION}.amazonaws.com/${item.imageKey}`:null;
   const statusBadge=ev.computedStatus==='ALL_CLEAR'?`<span class="scan-summary-chip green">${icoCheck} All Clear</span>`:ev.computedStatus==='VIOLATION_DETECTED'?`<span class="scan-summary-chip red">${icoWarning} Violation Detected</span>`:`<span class="scan-summary-chip neutral">${icoPerson} No Persons</span>`;
-  const personCardsHtml=persons.length===0?`<div class="no-results" style="padding:24px 0;"><div class="no-results-icon"><svg width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>No persons detected.</div>`:persons.map((p,i)=>{const pName=(p.personId||`Person ${i+1}`).replace(/_/g,' ');const cls=p.isCompliant?'compliant':'violation';const badge=p.isCompliant?`<span class="badge badge-clear" style="margin-left:0;">${icoCheck} OK</span>`:`<span class="badge badge-violation" style="margin-left:0;">${icoWarning} Violation</span>`;const has=t=>(p.detectedPPE||[]).some(d=>d.type===t&&d.coversBodyPart&&(d.confidence||0)>=settings.confidence);const chip=(label,type)=>{const worn=has(type);const req=settings.strictMode||(type==='HEAD_COVER'&&settings.requireHelmet)||(type==='FACE_COVER'&&settings.requireMask)||(type==='HAND_COVER'&&settings.requireHands);if(!req)return`<span class="ppe-mini-chip na">${label}</span>`;return worn?`<span class="ppe-mini-chip worn">${icoCheck} ${label}</span>`:`<span class="ppe-mini-chip missing">${icoWarning} ${label}</span>`;};return`<div class="person-mini-card ${cls}" onclick='openPersonModal(${JSON.stringify(p).replace(/'/g,"&#39;")})' title="Click for details"><div class="person-mini-card-header"><div class="person-mini-name">${pName}</div>${badge}</div><div class="person-mini-ppe">${chip('Helmet','HEAD_COVER')}${chip('Mask','FACE_COVER')}${chip('Gloves','HAND_COVER')}</div></div>`;}).join('');
+  const personCardsHtml=persons.length===0?`<div class="no-results" style="padding:24px 0;"><div class="no-results-icon"><svg width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>No persons detected.</div>`:persons.map((p,i)=>{const pName=(p.personId||`Person ${i+1}`).replace(/_/g,' ');const cls=p.isCompliant?'compliant':'violation';const has=t=>(p.detectedPPE||[]).some(d=>d.type===t&&d.coversBodyPart&&(d.confidence||0)>=settings.confidence);const chip=(label,type)=>{const worn=has(type);const req=settings.strictMode||(type==='HEAD_COVER'&&settings.requireHelmet)||(type==='FACE_COVER'&&settings.requireMask)||(type==='HAND_COVER'&&settings.requireHands);if(!req)return`<span class="ppe-mini-chip na">${label}</span>`;return worn?`<span class="ppe-mini-chip worn">${icoCheck} ${label}</span>`:`<span class="ppe-mini-chip missing">${icoWarning} ${label}</span>`;};return`<div class="person-mini-card ${cls}" onclick='openPersonModal(${JSON.stringify(p).replace(/'/g,"&#39;")})' title="Click for details"><div class="person-mini-card-header"><div class="person-mini-name">${pName}</div></div><div class="person-mini-ppe">${chip('Helmet','HEAD_COVER')}${chip('Mask','FACE_COVER')}${chip('Gloves','HAND_COVER')}</div></div>`;}).join('');
   document.getElementById('scanDetailTitle').innerHTML=`<div class="modal-title-icon"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>${fname}`;
-  document.getElementById('scanDetailBody').innerHTML=`<div class="scan-summary-bar"><span class="scan-summary-chip blue">${icoPerson} ${persons.length} person${persons.length!==1?'s':''} detected</span>${statusBadge}<span style="font-size:0.73rem;color:var(--muted);margin-left:auto;">${ts}</span></div><div class="scan-detail-img-wrap" id="scanDetailImgWrap"><div class="scan-detail-img-loading"><svg class="spin" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity=".2"/><path d="M21 12a9 9 0 00-9-9"/></svg>Loading image…</div></div>${persons.length>0?`<div class="person-cards-label">Persons &amp; Compliance</div><div class="person-cards-grid">${personCardsHtml}</div>`:personCardsHtml}`;
+  document.getElementById('scanDetailBody').innerHTML=`<div class="scan-summary-bar"><span class="scan-summary-chip blue">${icoPerson} ${persons.length} person${persons.length!==1?'s':''} detected</span>${statusBadge}<span style="font-size:0.73rem;color:var(--muted);margin-left:auto;">${ts}</span></div><div class="scan-compare-wrap" id="scanDetailImgWrap"><div class="scan-compare-col"><div class="scan-compare-label">Original</div><div class="scan-compare-img" id="scanOrigWrap"><div class="scan-detail-img-loading"><svg class="spin" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity=".2"/><path d="M21 12a9 9 0 00-9-9"/></svg>Loading…</div></div></div><div class="scan-compare-col"><div class="scan-compare-label">Annotated</div><div class="scan-compare-img" id="scanAnnotWrap"><div class="scan-detail-img-loading"><svg class="spin" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity=".2"/><path d="M21 12a9 9 0 00-9-9"/></svg>Loading…</div></div></div></div>${persons.length>0?`<div class="person-cards-label">Persons &amp; Compliance</div><div class="person-cards-grid">${personCardsHtml}</div>`:personCardsHtml}`;
   document.getElementById('scanDetailOverlay').classList.add('open');
-  if(imgUrl){const img=new Image();img.crossOrigin='anonymous';img.onload=()=>{const wrap=document.getElementById('scanDetailImgWrap');if(!wrap)return;const maxW=Math.min(wrap.offsetWidth||780,780);const scale=Math.min(1,maxW/img.naturalWidth);const cvs=document.createElement('canvas');cvs.width=img.naturalWidth*scale;cvs.height=img.naturalHeight*scale;const ctx=cvs.getContext('2d');ctx.drawImage(img,0,0,cvs.width,cvs.height);drawAnnotations(ctx,cvs.width,cvs.height,persons);wrap.innerHTML='';wrap.appendChild(cvs);};img.onerror=()=>{const wrap=document.getElementById('scanDetailImgWrap');if(wrap)wrap.innerHTML=`<div class="scan-detail-img-error"><svg width="36" height="36" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>Image not accessible.<br><span style="font-size:0.72rem;">S3 bucket may not have public read enabled.</span></div>`;};img.src=imgUrl;}
+  if(imgUrl){
+    const img=new Image();
+    img.crossOrigin='anonymous';
+    img.onload=()=>{
+      // --- Original image (left) ---
+      const origWrap=document.getElementById('scanOrigWrap');
+      if(origWrap){
+        const maxW=Math.min((origWrap.offsetWidth||380),780);
+        const scale=Math.min(1,maxW/img.naturalWidth);
+        const origImg=document.createElement('img');
+        origImg.src=img.src;
+        origImg.style.cssText='display:block;max-width:100%;border-radius:6px;';
+        origWrap.innerHTML='';
+        origWrap.appendChild(origImg);
+      }
+      // --- Annotated image (right) ---
+      const annotWrap=document.getElementById('scanAnnotWrap');
+      if(annotWrap){
+        const maxW2=Math.min((annotWrap.offsetWidth||380),780);
+        const scale2=Math.min(1,maxW2/img.naturalWidth);
+        const cvs=document.createElement('canvas');
+        cvs.width=img.naturalWidth*scale2;
+        cvs.height=img.naturalHeight*scale2;
+        const ctx=cvs.getContext('2d');
+        ctx.drawImage(img,0,0,cvs.width,cvs.height);
+        drawAnnotations(ctx,cvs.width,cvs.height,persons);
+        cvs.style.cssText='display:block;max-width:100%;border-radius:6px;';
+        annotWrap.innerHTML='';
+        annotWrap.appendChild(cvs);
+      }
+    };
+    img.onerror=()=>{
+      const errHtml=`<div class="scan-detail-img-error"><svg width="36" height="36" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>Image not accessible.<br><span style="font-size:0.72rem;">S3 bucket may not have public read enabled.</span></div>`;
+      const ow=document.getElementById('scanOrigWrap');
+      const aw=document.getElementById('scanAnnotWrap');
+      if(ow)ow.innerHTML=errHtml;
+      if(aw)aw.innerHTML=errHtml;
+    };
+    img.src=imgUrl;
+  }
 }
 function closeScanDetail(){document.getElementById('scanDetailOverlay').classList.remove('open');}
 function closeScanDetailOutside(e){if(e.target===document.getElementById('scanDetailOverlay'))closeScanDetail();}
