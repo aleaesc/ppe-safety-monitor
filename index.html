@@ -1357,18 +1357,29 @@ function processFile(file) {
   uploadFile(file);
 }
 async function uploadFile(file) {
-  const key=`uploads/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g,'_')}`;
-  const url=`https://${BUCKET}.s3.${REGION}.amazonaws.com/${key}`;
-  setStatus('Uploading to S3…','uploading');
+  const key = `uploads/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')}`;
+  const url  = `https://${BUCKET}.s3.${REGION}.amazonaws.com/${key}`;
+  setStatus('Uploading to S3…', 'uploading');
   try {
-    const resp=await fetch(url,{method:'PUT',body:file,headers:{'Content-Type':file.type}});
-    if(resp.ok||resp.status===200||resp.status===204) {
-      setStatus('Uploaded — running PPE analysis (5–15 sec)…','uploading');
-      showToast('Image uploaded. Scanning for PPE…','info');
-      setTimeout(loadResults,7000);
-      setTimeout(()=>{if(userInitiatedScan)loadResults();},14000);
-    } else { setStatus(`Upload failed (HTTP ${resp.status}). Check bucket policy.`,'error'); userInitiatedScan=false; }
-  } catch { setStatus('Network error. Check CORS and bucket policy.','error'); userInitiatedScan=false; }
+    const resp = await fetch(url, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+    
+    if (resp.status === 403) {
+      // This is what happens when the bucket policy is removed
+      setStatus('Uploads paused — monthly scan limit reached. Resets on the 1st.', 'error');
+      showToast('Monthly limit reached. Uploads resume on the 1st.', '⚠️');
+      return;
+    }
+    
+    if (resp.ok || resp.status === 200 || resp.status === 204) {
+      setStatus('Uploaded — running PPE analysis (5–8 sec)…', 'uploading');
+      showToast('Image uploaded. Scanning for PPE…', '⏳');
+      setTimeout(loadResults, 7000);
+    } else {
+      setStatus(`Upload failed (HTTP ${resp.status}). Check bucket policy.`, 'error');
+    }
+  } catch {
+    setStatus('Network error. Check CORS and bucket policy.', 'error');
+  }
 }
 
 function drawAnnotations(ctx,cw,ch,persons) {
