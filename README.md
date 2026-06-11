@@ -50,6 +50,18 @@ python -m http.server 8080
 
 Then visit `http://localhost:8080`.
 
+## Deploying to Vercel
+
+This repo is ready for a static Vercel deployment with no build step.
+
+1. Push the repository to GitHub.
+2. Import the repo into Vercel.
+3. Keep the framework preset as `Other` or `Static`.
+4. Leave the build command empty.
+5. Set the output directory to the repository root, or let Vercel detect it automatically.
+
+The included `vercel.json` keeps the app on `index.html`, which is enough for this single-page portfolio demo.
+
 ## Configuration
 
 Open `index.html` and update the constants in the `<script>` block if your AWS resources differ from the ones in the repo:
